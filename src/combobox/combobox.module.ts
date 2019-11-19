@@ -1,8 +1,8 @@
 import { NgModule } from "@angular/core";
 import { CommonModule } from "@angular/common";
-
-import { StaticIconModule } from "./../icon/static-icon.module";
-import { PillInputModule } from "./../pill-input/pill-input.module";
+import { ChevronDown16Module } from "@carbon/icons-angular/lib/chevron--down/16";
+import { Close16Module } from "@carbon/icons-angular/lib/close/16";
+import { WarningFilled16Module } from "@carbon/icons-angular/lib/warning--filled/16";
 
 import { ComboBox } from "./combobox.component";
 import { DropdownModule } from "../dropdown/dropdown.module";
@@ -12,7 +12,7 @@ export { ComboBox } from "./combobox.component";
 
 @NgModule({
 	declarations: [
-		ComboBox,
+		ComboBox
 	],
 	exports: [
 		ComboBox,
@@ -20,9 +20,10 @@ export { ComboBox } from "./combobox.component";
 	],
 	imports: [
 		CommonModule,
-		PillInputModule,
-		StaticIconModule,
-		DropdownModule
+		DropdownModule,
+		ChevronDown16Module,
+		Close16Module,
+		WarningFilled16Module
 	]
 })
 export class ComboBoxModule {}

@@ -1,8 +1,8 @@
-@import "~carbon-components/scss/globals/scss/styles.scss";
+@import '~carbon-components/scss/globals/scss/styles';
 
-body {
-	margin: 20px;
-	// for tooltips/popovers ... can be on any chld element before the popover
-	// but body is most conveient
-	position: relative;
+.sb-show-main:not(.full-page) {
+	padding: 3em;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 }

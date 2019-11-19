@@ -1,15 +1,15 @@
 import { storiesOf, moduleMetadata } from "@storybook/angular";
-import { withNotes } from "@storybook/addon-notes";
 import { action } from "@storybook/addon-actions";
 import { withKnobs, boolean, object } from "@storybook/addon-knobs/angular";
 
-import { AccordionModule } from "../";
+import { AccordionModule, DocumentationModule } from "../";
 
 storiesOf("Accordion", module)
 	.addDecorator(
 		moduleMetadata({
 			imports: [
-				AccordionModule
+				AccordionModule,
+				DocumentationModule
 			]
 		})
 	)
@@ -52,4 +52,21 @@ storiesOf("Accordion", module)
 			],
 			selected: action("item expanded")
 		}
+	}))
+	.add("Skeleton", () => ({
+		template: `
+			<div style="width: 500px">
+				<ibm-accordion skeleton="true">
+					<ibm-accordion-item expanded="true"></ibm-accordion-item>
+					<ibm-accordion-item></ibm-accordion-item>
+					<ibm-accordion-item></ibm-accordion-item>
+					<ibm-accordion-item></ibm-accordion-item>
+				</ibm-accordion>
+			</div>
+		`
+	}))
+	.add("Documentation", () => ({
+		template: `
+			<ibm-documentation src="documentation/components/Accordion.html"></ibm-documentation>
+		`
 	}));

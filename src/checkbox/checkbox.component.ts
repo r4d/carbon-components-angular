@@ -15,8 +15,6 @@ import { NG_VALUE_ACCESSOR, ControlValueAccessor } from "@angular/forms";
 
 /**
  * Defines the set of states for a checkbox component.
- * @export
- * @enum {number}
  */
 export enum CheckboxState {
 	Init,
@@ -27,29 +25,22 @@ export enum CheckboxState {
 
 /**
  * Used to emit changes performed on checkbox components.
- * @export
- * @class CheckboxChange
  */
 export class CheckboxChange {
 	/**
-	 * Contains the `CheckboxComponent` that has been changed.
-	 * @type {CheckboxComponent}
-	 * @memberof CheckboxChange
+	 * Contains the `Checkbox` that has been changed.
 	 */
-	source: CheckboxComponent;
+	source: Checkbox;
 	/**
-	 * The state of the `CheckboxComponent` encompassed in the `CheckboxChange` class.
-	 * @type {boolean}
-	 * @memberof CheckboxChange
+	 * The state of the `Checkbox` encompassed in the `CheckboxChange` class.
 	 */
 	checked: boolean;
 }
 
 /**
- * @export
- * @class CheckboxComponent
- * @implements {ControlValueAccessor}
- * @implements {AfterViewInit}
+ * [See demo](../../?path=/story/checkbox--basic)
+ *
+ * <example-url>../../iframe.html?id=checkbox--basic</example-url>
  */
 @Component({
 	selector: "ibm-checkbox",
@@ -67,110 +58,96 @@ export class CheckboxChange {
 			[indeterminate]="indeterminate"
 			[attr.aria-label]="ariaLabel"
 			[attr.aria-labelledby]="ariaLabelledby"
-			[attr.aria-checked]="indeterminate ? 'mixed' : checked"
+			[attr.aria-checked]="(indeterminate ? 'mixed' : checked)"
 			(change)="onChange($event)"
 			(click)="onClick($event)">
-		<label [for]="id" class="bx--checkbox-label">
-			<ng-content></ng-content>
+		<label
+			[for]="id"
+			class="bx--checkbox-label"
+			[ngClass]="{
+				'bx--skeleton' : skeleton
+			}">
+			<span [ngClass]="{'bx--visually-hidden' : hideLabel}">
+				<ng-content></ng-content>
+			</span>
 		</label>
 	`,
 	providers: [
 		{
 			provide: NG_VALUE_ACCESSOR,
-			useExisting: CheckboxComponent,
+			useExisting: Checkbox,
 			multi: true
 		}
 	],
 	changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
+export class Checkbox implements ControlValueAccessor, AfterViewInit {
 	/**
 	 * Variable used for creating unique ids for checkbox components.
-	 * @type {number}
-	 * @static
-	 * @memberof CheckboxComponent
 	 */
 	static checkboxCount = 0;
 
-	@HostBinding("attr.class") class = "bx--checkbox-wrapper";
-
 	/**
 	 * Size of the checkbox.
-	 * (size `"default"` is being deprecated as of neutrino v1.2.0, please use `"md"` instead)
-	 * @type {("sm" | "md" | "default")}
-	 * @memberof CheckboxComponent
 	 */
-	@Input() size: "sm" | "md" | "default" = "md";
-	/**
-	 * Set to `true` for checkbox to be rendered with inline styles.
-	 * @type {boolean}
-	 * @memberof CheckboxComponent
-	 */
-	@Input() inline: boolean;
+	@Input() size: "sm" | "md" = "md";
 	/**
 	 * Set to `true` for checkbox to be rendered with nested styles.
-	 * @type {boolean}
-	 * @memberof CheckboxComponent
 	 */
 	@Input() nested: boolean;
 	/**
+	 * Set to `true` for checkbox to be rendered without any classes on the host element.
+	 */
+	@Input() inline = false;
+	/**
 	 * Set to `true` for a disabled checkbox.
-	 * @type {boolean}
-	 * @memberof CheckboxComponent
 	 */
 	@Input() disabled = false;
 	/**
+	 * Set to `true` for a loading checkbox.
+	 */
+	@Input() skeleton = false;
+	/**
+	 * Set to `true` to hide the checkbox labels.
+	 */
+	@Input() hideLabel = false;
+	/**
 	 * Sets the name attribute on the `input` element.
-	 * @type {string}
-	 * @memberof CheckboxComponent
 	 */
 	@Input() name: string;
 	/**
 	 * The unique id for the checkbox component.
-	 * @type {string}
-	 * @memberof CheckboxComponent
 	 */
-	@Input() id = `checkbox-${CheckboxComponent.checkboxCount}`;
+	@Input() id = `checkbox-${Checkbox.checkboxCount}`;
 	/**
 	 * Reflects the required attribute of the `input` element.
-	 * @type {boolean}
-	 * @memberof CheckboxComponent
 	 */
 	@Input() required: boolean;
 	/**
 	 * Sets the value attribute on the `input` element.
-	 * @type {string}
-	 * @memberof CheckboxComponent
 	 */
 	@Input() value: string;
 	/**
 	 * Used to set the `aria-label` attribute on the input element.
-	 * @memberof CheckboxComponent
 	 */
 	// tslint:disable-next-line:no-input-rename
 	@Input("aria-label") ariaLabel = "";
 	/**
 	 * Used to set the `aria-labelledby` attribute on the input element.
-	 * @type {string}
-	 * @memberof CheckboxComponent
 	 */
 	// tslint:disable-next-line:no-input-rename
 	@Input("aria-labelledby") ariaLabelledby: string;
 	/**
 	 * Reflects whether the checkbox state is indeterminate.
-	 * @readonly
-	 * @memberof CheckboxComponent
 	 */
-	@Input() get indeterminate() {
+	get indeterminate() {
 		return this._indeterminate;
 	}
 
 	/**
 	 * Set the checkbox's indeterminate state to match the parameter and transition the view to reflect the change.
-	 * @param indeterminate
-	 * @memberof CheckboxComponent
 	 */
-	set indeterminate(indeterminate: boolean) {
+	@Input() set indeterminate(indeterminate: boolean) {
 		let changed = this._indeterminate !== indeterminate;
 		this._indeterminate = indeterminate;
 
@@ -185,19 +162,15 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 
 	/**
 	 * Returns value `true` if state is selected for the checkbox.
-	 * @readonly
-	 * @memberof CheckboxComponent
 	 */
-	@Input() get checked() {
+	get checked() {
 		return this._checked;
 	}
 
 	/**
 	 * Updating the state of a checkbox to match the state of the parameter passed in.
-	 * @param checked
-	 * @memberof CheckboxComponent
 	 */
-	set checked (checked: boolean) {
+	@Input() set checked (checked: boolean) {
 		if (checked !== this.checked) {
 			if (this._indeterminate) {
 				Promise.resolve().then(() => {
@@ -210,63 +183,49 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 		}
 	}
 
+	@HostBinding("class.bx--checkbox-wrapper") get checkboxWrapperClass() {
+		return !this.inline;
+	}
+	@HostBinding("class.bx--form-item") get formItemClass() {
+		return !this.inline;
+	}
+
 	/**
 	 * Emits event notifying other classes when a change in state occurs on a checkbox after a
 	 * click.
-	 * @memberof CheckboxComponent
 	 */
 	@Output() change = new EventEmitter<CheckboxChange>();
 	/**
 	 * Emits event notifying other classes when a change in state occurs specifically
 	 * on an indeterminate checkbox.
-	 * @memberof CheckboxComponent
 	 */
 	@Output() indeterminateChange = new EventEmitter<boolean>();
 
 	/**
 	 * Set to `true` if the input checkbox is selected (or checked).
-	 * @memberof CheckboxComponent
 	 */
 	_checked = false;
 	/**
 	 * Set to `true` if the input checkbox is in state indeterminate.
-	 * @memberof CheckboxComponent
 	 */
 	_indeterminate = false;
 
 	currentCheckboxState: CheckboxState = CheckboxState.Init;
 
 	/**
-	 * Maintains a reference to the view DOM element of the `CheckboxComponent`.
-	 * @type {ElementRef}
-	 * @memberof CheckboxComponent
+	 * Maintains a reference to the view DOM element of the `Checkbox`.
 	 */
 	@ViewChild("inputCheckbox") inputCheckbox: ElementRef;
 
 	/**
-	 * Creates an instance of `CheckboxComponent`.
-	 * @param {ChangeDetectorRef} changeDetectorRef
-	 * @memberof CheckboxComponent
+	 * Creates an instance of `Checkbox`.
 	 */
 	constructor(protected changeDetectorRef: ChangeDetectorRef) {
-		CheckboxComponent.checkboxCount++;
-	}
-
-	/**
-	 * Creates a class name based on `@Input() size`, `@Input() inline`, and `@Input() nested`.
-	 * @return {string}
-	 */
-	public getVariantClass() {
-		if (this.inline || this.nested) {
-			return `checkbox${this.inline ? "--inline" : ""}${this.nested ? "--nested" : ""}${this.size !== "md" ? `-${this.size}` : ""}`;
-		} else {
-			return `checkbox${this.size !== "md" ? `--${this.size}` : ""}`;
-		}
+		Checkbox.checkboxCount++;
 	}
 
 	/**
 	 * Toggle the selected state of the checkbox.
-	 * @memberof CheckboxComponent
 	 */
 	public toggle() {
 		this.checked = !this.checked;
@@ -279,8 +238,6 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 
 	/**
 	 * Sets a method in order to propagate changes back to the form.
-	 * @param {any} fn
-	 * @memberof CheckboxComponent
 	 */
 	public registerOnChange(fn: any) {
 		this.propagateChange = fn;
@@ -295,18 +252,14 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 	}
 
 	/**
-	 * Executes on the event of a change within `CheckboxComponent` to block propagation.
-	 * @param {any} event
-	 * @memberof CheckboxComponent
+	 * Executes on the event of a change within `Checkbox` to block propagation.
 	 */
 	onChange(event) {
 		event.stopPropagation();
 	}
 
 	/**
-	 * Handles click events on the `CheckboxComponent` and emits changes to other classes.
-	 * @param {any} event
-	 * @memberof CheckboxComponent
+	 * Handles click events on the `Checkbox` and emits changes to other classes.
 	 */
 	onClick(event) {
 		if (!this.disabled) {
@@ -319,15 +272,11 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 
 	/**
 	 * Called when checkbox is blurred. Needed to properly implement `ControlValueAccessor`.
-	 * @memberof CheckboxComponent
 	 */
 	onTouched: () => any = () => {};
 
 	/**
 	 * Handles changes between checkbox states.
-	 * @param {CheckboxState} newState
-	 * @returns {null}
-	 * @memberof CheckboxComponent
 	 */
 	transitionCheckboxState(newState: CheckboxState) {
 		let oldState = this.currentCheckboxState;
@@ -349,7 +298,6 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 
 	/**
 	 * Creates instance of `CheckboxChange` used to propagate the change event.
-	 * @memberof CheckboxComponent
 	 */
 	emitChangeEvent() {
 		let event = new CheckboxChange();
@@ -362,7 +310,6 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 
 	/**
 	 * Updates the checkbox if it is in the indeterminate state.
-	 * @memberof CheckboxComponent
 	 */
 	ngAfterViewInit() {
 		if (this.indeterminate) {
@@ -373,7 +320,6 @@ export class CheckboxComponent implements ControlValueAccessor, AfterViewInit {
 
 	/**
 	 * Method set in `registerOnChange` to propagate changes back to the form.
-	 * @memberof CheckboxComponent
 	 */
 	propagateChange = (_: any) => {};
 }

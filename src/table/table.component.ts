@@ -3,36 +3,55 @@ import {
 	ApplicationRef,
 	Input,
 	Output,
-	EventEmitter
+	EventEmitter,
+	ElementRef,
+	AfterViewInit,
+	TemplateRef,
+	OnDestroy
 } from "@angular/core";
-import { Subscription, fromEvent } from "rxjs";
+import { Subscription, fromEvent, Observable } from "rxjs";
 
-import { TableModel } from "./table.module";
-import { getScrollbarWidth } from "../common/utils";
+import { TableModel } from "./table-model.class";
+import { TableHeaderItem } from "./table-header-item.class";
+import { TableItem } from "./table-item.class";
+
+import { getFocusElementList, tabbableSelectorIgnoreTabIndex } from "../common/tab.service";
+import { I18n, Overridable } from "./../i18n/i18n.module";
+import { merge } from "./../utils/object";
+import { DataGridInteractionModel } from "./data-grid-interaction-model.class";
+import { TableDomAdapter } from "./table-adapter.class";
+
+export interface TableTranslations {
+	FILTER: string;
+	END_OF_DATA: string;
+	SCROLL_TOP: string;
+	CHECKBOX_HEADER: string;
+	CHECKBOX_ROW: string;
+}
 
 /**
  * Build your table with this component by extending things that differ from default.
  *
- * demo: [https://pages.github.ibm.com/peretz/neutrino/#/table](https://pages.github.ibm.com/peretz/neutrino/#/table)
+ * [See demo](../../?path=/story/table--basic)
  *
  * Instead of the usual write-your-own-html approach you had with `<table>`,
- * neutrino table uses model-view-controller approach.
+ * carbon table uses model-view-controller approach.
  *
  * Here, you create a view (with built-in controller) and provide it a model.
  * Changes you make to the model are reflected in the view. Provide same model you use
- * in the table to the `<ibm-table-pagination>` and `<ibm-table-goto-page>` components.
+ * in the table to the `<ibm-pagination>` components.
  * They provide a different view over the same data.
  *
  * ## Basic usage
  *
  * ```html
- * <ibm-table [model]="simpleModel"></ibm-table>
+ * <ibm-table [model]="model"></ibm-table>
  * ```
  *
  * ```typescript
- * public simpleModel = new TableModel();
+ * public model = new TableModel();
  *
- * this.simpleModel.data = [
+ * this.model.data = [
  * 	[new TableItem({data: "asdf"}), new TableItem({data: "qwer"})],
  * 	[new TableItem({data: "csdf"}), new TableItem({data: "zwer"})],
  * 	[new TableItem({data: "bsdf"}), new TableItem({data: "swer"})],
@@ -79,7 +98,7 @@ import { getScrollbarWidth } from "../common/utils";
  * 		return true;
  * 	}
  *
- * 	set filterCount(n) {}
+ * 	set filterCount(n) {}
  * 	get filterCount() {
  * 		return (this.filterData && this.filterData.data && this.filterData.data.length > 0) ? 1 : 0;
  * 	}
@@ -102,14 +121,21 @@ import { getScrollbarWidth } from "../common/utils";
  *
  * See `TableHeaderItem` class for more information.
  *
- * ## Build your own table footer with neutrino components
+ * ## No data template
+ *
+ * When table has no data to show, it can show a message you provide it instead.
  *
  * ```html
- * <p class="table-footer">
- * 	<span class="table-selection-info">{{model.selectedRowsCount()}} of {{model.totalDataLength}} rows selected</span>
- * 	<ibm-table-pagination [model]="model" (selectPage)="selectPage($event)"></ibm-table-pagination>
- * 	<ibm-table-goto-page (selectPage)="selectPage($event)"></ibm-table-goto-page>
- * </p>
+ * <ibm-table [model]="model">No data.</ibm-table>
+ * ```
+ *
+ * ... will show `No data.` message, but you can get creative and provide any template you want
+ * to replace table's default `tbody`.
+ *
+ * ## Use pagination as table footer
+ *
+ * ```html
+ * <ibm-pagination [model]="model" (selectPage)="selectPage($event)"></ibm-pagination>
  * ```
  *
  * `selectPage()` function should fetch the data from backend, create new `data`, apply it to `model.data`,
@@ -119,218 +145,96 @@ import { getScrollbarWidth } from "../common/utils";
  *
  * ```typescript
  * selectPage(page) {
- * 	this.service.getPage(page).then((data: Array<Array<any>>) => {
- * 		let newData = [];
- *
- * 		// create new data from the service data
- * 		data.forEach(dataRow => {
- * 			let row = [];
- * 			dataRow.forEach(dataElement => {
- * 				row.push(new TableItem({
- * 					data: dataElement,
- * 					template: typeof dataElement === "string" ? undefined : this.customTableItemTemplate
- * 					// your template can handle all the data types so you don't have to conditionally set it
- * 					// you can also set different templates for different columns based on index
- * 				}));
- * 			});
- * 			newData.push(row);
- * 		});
- *
+ * 	this.getPage(page).then((data: Array<Array<any>>) => {
  * 		// set the data and update page
- * 		this.model.data = newData;
+ * 		this.model.data = this.prepareData(data);
  * 		this.model.currentPage = page;
  * 	});
  * }
+ *
+ * protected prepareData(data: Array<Array<any>>) {
+ * 	// create new data from the service data
+ * 	let newData = [];
+ * 	data.forEach(dataRow => {
+ * 		let row = [];
+ * 		dataRow.forEach(dataElement => {
+ * 			row.push(new TableItem({
+ * 				data: dataElement,
+ * 				template: typeof dataElement === "string" ? undefined : this.paginationTableItemTemplate
+ * 				// your template can handle all the data types so you don't have to conditionally set it
+ * 				// you can also set different templates for different columns based on index
+ * 			}));
+ * 		});
+ * 		newData.push(row);
+ * 	});
+ * 	return newData;
+ * }
  * ```
  *
- * @export
- * @class Table
- * @implements {AfterContentChecked}
+ * <example-url>../../iframe.html?id=table--basic</example-url>
  */
 @Component({
 	selector: "ibm-table",
 	template: `
 	<table
-	class="bx--data-table-v2"
-	[ngClass]="{
-		'bx--data-table-v2--compact': size === 'sm',
-		'bx--data-table-v2--tall': size === 'lg',
-		'bx--data-table-v2--zebra': striped
-	}">
-		<thead>
-			<tr>
-				<th *ngIf="model.hasExpandableRows()"></th>
-				<th *ngIf="showSelectionColumn">
-					<ibm-checkbox
-						[size]="size !== 'lg' ? 'sm' : 'md'"
-						[(ngModel)]="selectAllCheckbox"
-						[indeterminate]="selectAllCheckboxSomeSelected"
-						(change)="onSelectAllCheckboxChange()">
-					</ibm-checkbox>
-				</th>
-				<ng-container *ngFor="let column of model.header; let i = index">
-					<th [ngClass]='{"thead_action": column.filterTemplate || this.sort.observers.length > 0}'
-					*ngIf="column.visible"
-					[ngStyle]="column.style"
-					[draggable]="columnsDraggable"
-					(dragstart)="columnDragStart($event, i)"
-					(dragend)="columnDragEnd($event, i)">
-						<div
-						*ngIf="columnsResizable"
-						class="column-resize-handle"
-						(mousedown)="columnResizeStart($event, column)">
-						</div>
-						<button
-							class="bx--table-sort-v2"
-							[ngClass]="{
-								'bx--table-sort-v2--active': column.sorted,
-								'bx--table-sort-v2--ascending': column.descending
-							}"
-							(click)="sort.emit(i)">
-							<span *ngIf="!column.template" [title]="column.data">{{column.data}}</span>
-							<ng-template
-								[ngTemplateOutlet]="column.template" [ngTemplateOutletContext]="{data: column.data}">
-							</ng-template>
-							<svg
-							class="bx--table-sort-v2__icon"
-							width="10" height="5" viewBox="0 0 10 5"
-							aria-label="Sort rows by this header in descending order"
-							alt="Sort rows by this header in descending order">
-								<title>Sort rows by this header in descending order</title>
-								<path d="M0 0l5 4.998L10 0z" fill-rule="evenodd" />
-							</svg>
-						</button>
-						<button
-							[ngClass]="{'active': column.filterCount > 0}"
-							*ngIf="column.filterTemplate"
-							type="button"
-							aria-expanded="false"
-							aria-haspopup="true"
-							[ibmTooltip]="column.filterTemplate"
-							trigger="click"
-							title="{{'TABLE.FILTER' | translate}}"
-							placement="bottom,top"
-							[appendToBody]="true"
-							[data]="column.filterData">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="icon--sm"
-								width="16"
-								height="16"
-								viewBox="0 0 16 16">
-								<path d="M0 0v3l6 8v5h4v-5l6-8V0H0zm9 10.7V15H7v-4.3L1.3 3h13.5L9 10.7z"/>
-							</svg>
-							<span *ngIf="column.filterCount > 0">
-								{{column.filterCount}}
-							</span>
-						</button>
-						<div
-						*ngIf="columnsDraggable && isColumnDragging"
-						class="drop-area">
-							<div
-							*ngIf="columnDraggedHoverIndex == i && columnDraggedPosition == 'left'"
-							class="drop-indicator-left"></div>
-							<div
-							class="drop-area-left"
-							(dragenter)="columnDragEnter($event, 'left', i)"
-							(dragleave)="columnDragLeave($event, 'left', i)"
-							(dragover)="columnDragover($event, 'left', i)"
-							(drop)="columnDrop($event, 'left', i)">
-							</div>
-
-							<div
-							class="drop-area-right"
-							(dragenter)="columnDragEnter($event, 'right', i)"
-							(dragleave)="columnDragLeave($event, 'right', i)"
-							(dragover)="columnDragover($event, 'right', i)"
-							(drop)="columnDrop($event, 'right', i)">
-							</div>
-							<div
-							*ngIf="columnDraggedHoverIndex == i && columnDraggedPosition == 'right'"
-							class="drop-indicator-right"></div>
-						</div>
-					</th>
-				</ng-container>
-				<th [ngStyle]="{'width': scrollbarWidth + 'px', 'padding': 0, 'border': 0}">
-					<!--
-						Scrollbar pushes body to the left so this header column is added to push
-						the title bar the same amount and keep the header and body columns aligned.
-					-->
-				</th>
-			</tr>
+		ibmTable
+		sortable="true"
+		[size]="size"
+		[striped]="striped"
+		[skeleton]="skeleton">
+		<thead
+			ibmTableHead
+			(deselectAll)="onDeselectAll()"
+			(selectAll)="onSelectAll()"
+			(sort)="sort.emit($event)"
+			[checkboxHeaderLabel]="getCheckboxHeaderLabel()"
+			[filterTitle]="getFilterTitle()"
+			[model]="model"
+			[size]="size"
+			[selectAllCheckbox]="selectAllCheckbox"
+			[selectAllCheckboxSomeSelected]="selectAllCheckboxSomeSelected"
+			[showSelectionColumn]="showSelectionColumn"
+			[enableSingleSelect]="enableSingleSelect"
+			[skeleton]="skeleton"
+			[sortAscendingLabel]="sortAscendingLabel"
+			[sortDescendingLabel]="sortDescendingLabel"
+			[stickyHeader]="stickyHeader">
 		</thead>
 		<tbody
-		[ngStyle]="{'overflow-y': 'scroll'}"
-		(scroll)="onScroll($event)">
-			<ng-container *ngFor="let row of model.data; let i = index">
-				<tr *ngIf="!model.isRowFiltered(i)"
-					(click)="onRowSelect(i)"
-					[attr.data-parent-row]="(model.isRowExpandable(i) ? 'true' : null)"
-					[ngClass]="{
-						selected: model.rowsSelected[i],
-						'bx--parent-row-v2': model.isRowExpandable(i),
-						'bx--expandable-row-v2': model.rowsExpanded[i],
-						'tbody_row--selectable': enableSingleSelect,
-						'tbody_row--success': !model.rowsSelected[i] && model.rowsContext[i] === 'success',
-						'tbody_row--warning': !model.rowsSelected[i] && model.rowsContext[i] === 'warning',
-						'tbody_row--info': !model.rowsSelected[i] && model.rowsContext[i] === 'info',
-						'tbody_row--error': !model.rowsSelected[i] && model.rowsContext[i] === 'error'
-					}">
-					<td
-					*ngIf="model.hasExpandableRows()"
-					class="bx--table-expand-v2"
-					[attr.data-previous-value]="(model.rowsExpanded[i] ? 'collapsed' : null)">
-						<button
-						*ngIf="model.isRowExpandable(i)"
-						(click)="model.expandRow(i, !model.rowsExpanded[i])"
-						class="bx--table-expand-v2__button">
-							<svg class="bx--table-expand-v2__svg" width="7" height="12" viewBox="0 0 7 12">
-								<path fill-rule="nonzero" d="M5.569 5.994L0 .726.687 0l6.336 5.994-6.335 6.002L0 11.27z" />
-							</svg>
-						</button>
-					</td>
-					<td *ngIf="showSelectionColumn">
-						<ibm-checkbox
-							[size]="size !== ('lg' ? 'sm' : 'md')"
-							[(ngModel)]="model.rowsSelected[i]"
-							(change)="onRowCheckboxChange(i)">
-						</ibm-checkbox>
-					</td>
-					<ng-container *ngFor="let item of row; let i = index">
-						<td *ngIf="model.header[i].visible"
-							[ngStyle]="model.header[i].style">
-							<ng-container *ngIf="!item.template">{{item.data}}</ng-container>
-							<ng-template
-								[ngTemplateOutlet]="item.template" [ngTemplateOutletContext]="{data: item.data}">
-							</ng-template>
-						</td>
-					</ng-container>
-				</tr>
-				<tr
-				*ngIf="model.rowsExpanded[i]"
-				class="bx--expandable-row-v2"
-				[attr.data-child-row]="(model.rowsExpanded[i] ? 'true' : null)">
-					<td [attr.colspan]="model.data.length + 2">
-						<ng-container *ngIf="!firstExpandedTemplateInRow(row)">{{firstExpandedDataInRow(row)}}</ng-container>
-						<ng-template
-							[ngTemplateOutlet]="firstExpandedTemplateInRow(row)"
-							[ngTemplateOutletContext]="{data: firstExpandedDataInRow(row)}">
-						</ng-template>
-					</td>
-				</tr>
-			</ng-container>
+			ibmTableBody
+			(deselectRow)="onSelectRow($event)"
+			(scroll)="onScroll($event)"
+			(selectRow)="onSelectRow($event)"
+			[checkboxRowLabel]="getCheckboxRowLabel()"
+			[enableSingleSelect]="enableSingleSelect"
+			[expandButtonAriaLabel]="expandButtonAriaLabel"
+			[model]="model"
+			[size]="size"
+			[ngStyle]="{'overflow-y': 'scroll'}"
+			[selectionLabelColumn]="selectionLabelColumn"
+			[showSelectionColumn]="showSelectionColumn"
+			[skeleton]="skeleton"
+			*ngIf="!noData; else noDataTemplate">
 		</tbody>
+		<ng-template #noDataTemplate><ng-content></ng-content></ng-template>
 		<tfoot>
+			<ng-template
+				[ngTemplateOutlet]="footerTemplate">
+			</ng-template>
 			<tr *ngIf="this.model.isLoading">
 				<td class="table_loading-indicator">
-					<ibm-static-icon icon="loading_rows" size="lg"></ibm-static-icon>
+					<div class="bx--loading bx--loading--small">
+						<svg class="bx--loading__svg" viewBox="-75 -75 150 150">
+							<circle class="bx--loading__stroke" cx="0" cy="0" r="37.5" />
+						</svg>
+					</div>
 				</td>
 			</tr>
 			<tr *ngIf="this.model.isEnd">
 				<td class="table_end-indicator">
-					<h5>{{'TABLE.END_OF_DATA'| translate}}</h5>
+					<h5>{{getEndOfDataText() | async}}</h5>
 					<button (click)="scrollToTop($event)" class="btn--secondary-sm">
-						{{ 'TABLE.SCROLL_TOP' | translate}}
+						{{getScrollTopText() | async}}
 					</button>
 				</td>
 			</tr>
@@ -338,31 +242,93 @@ import { getScrollbarWidth } from "../common/utils";
 	</table>
 	`
 })
-export class Table {
+export class Table implements AfterViewInit, OnDestroy {
 	/**
-	 * Size of the table rows.
+	 * Creates a skeleton model with a row and column count specified by the user
 	 *
-	 * @type {("sm" | "md" | "lg")}
-	 * @memberof Table
+	 * Example:
+	 *
+	 * ```typescript
+	 * this.model = Table.skeletonModel(5, 5);
+	 * ```
 	 */
-	@Input() size: "sm" | "md" | "lg" = "md";
+	static skeletonModel(rowCount: number, columnCount: number) {
+		const model = new TableModel();
+		let header = new Array<TableHeaderItem>();
+		let data = new Array<Array<TableItem>>();
+		let row = new Array<TableItem>();
+
+		for (let i = 0; i < columnCount; i++) {
+			header.push(new TableHeaderItem());
+			row.push(new TableItem());
+		}
+		for (let i = 0; i < rowCount - 1; i++) {
+			data.push(row);
+		}
+
+		model.header = header;
+		model.data = data;
+		return model;
+	}
+
+	static setTabIndex(element: HTMLElement, index: -1 | 0) {
+		const focusElementList = getFocusElementList(element, tabbableSelectorIgnoreTabIndex);
+		if (element.firstElementChild && element.firstElementChild.classList.contains("bx--table-sort")) {
+			focusElementList[1].tabIndex = index;
+		} else if (focusElementList.length > 0) {
+			focusElementList[0].tabIndex = index;
+		} else {
+			element.tabIndex = index;
+		}
+	}
+
+	static focus(element: HTMLElement) {
+		const focusElementList = getFocusElementList(element, tabbableSelectorIgnoreTabIndex);
+		if (element.firstElementChild && element.firstElementChild.classList.contains("bx--table-sort")) {
+			focusElementList[1].focus();
+		} else if (focusElementList.length > 0) {
+			focusElementList[0].focus();
+		} else {
+			element.focus();
+		}
+	}
 
 	/**
 	 * `TableModel` with data the table is to display.
-	 *
-	 * @type {TableModel}
-	 * @memberof Table
 	 */
 	@Input()
 	set model(m: TableModel) {
 		if (this._model) {
-			this._model.dataChange.unsubscribe();
-			this._model.rowsSelectedChange.unsubscribe();
+			this.subscriptions.unsubscribe();
 		}
 
 		this._model = m;
-		this._model.rowsSelectedChange.subscribe(() => this.updateSelectAllCheckbox());
-		this._model.dataChange.subscribe(() => this.updateSelectAllCheckbox());
+
+		const rowsChange = this._model.rowsSelectedChange.subscribe(() => this.updateSelectAllCheckbox());
+		const dataChange = this._model.dataChange.subscribe(() => {
+			if (this.isDataGrid) {
+				this.resetTabIndex();
+			}
+			this.updateSelectAllCheckbox();
+		});
+
+		this.subscriptions.add(rowsChange);
+		this.subscriptions.add(dataChange);
+
+		if (this.isDataGrid) {
+			const expandedChange = this._model.rowsExpandedChange.subscribe(() => {
+				// Allows the expanded row to have a focus state when it exists in the DOM
+				setTimeout(() => {
+					const expandedRows = this.elementRef.nativeElement.querySelectorAll(".bx--expandable-row:not(.bx--parent-row)");
+					Array.from<any>(expandedRows).forEach(row => {
+						if (row.firstElementChild.tabIndex === undefined || row.firstElementChild.tabIndex !== -1) {
+							row.firstElementChild.tabIndex = -1;
+						}
+					});
+				});
+			});
+			this.subscriptions.add(expandedChange);
+		}
 	}
 
 	get model(): TableModel {
@@ -370,9 +336,35 @@ export class Table {
 	}
 
 	/**
+	 * Size of the table rows.
+	 */
+	@Input() size: "sm" | "sh" | "md" | "lg" = "md";
+	/**
+	 * Set to `true` for a loading table.
+	 */
+	@Input() skeleton = false;
+	/**
+	 * Set to `true` for a data grid with keyboard interactions.
+	 */
+	@Input() set isDataGrid(value: boolean) {
+		this._isDataGrid = value;
+		if (this.isViewReady) {
+			if (value) {
+				this.enableDataGridInteractions();
+			} else {
+				this.disableDataGridInteractions();
+			}
+		}
+	}
+
+	get isDataGrid(): boolean {
+		return this._isDataGrid;
+	}
+
+	/**
 	 * Controls whether to show the selection checkboxes column or not.
 	 *
-	 * @deprecated in the next major neutrino version in favour of
+	 * @deprecated in the next major carbon-components-angular version in favor of
 	 * `showSelectionColumn` because of new attribute `enableSingleSelect`
 	 *  please use `showSelectionColumn` instead
 	 */
@@ -387,26 +379,17 @@ export class Table {
 
 	/**
 	 * Controls whether to show the selection checkboxes column or not.
-	 *
-	 * @type {boolean}
-	 * @memberof Table
 	 */
 	@Input() showSelectionColumn = true;
 
 	/**
 	 * Controls whether to enable multiple or single row selection.
-	 *
-	 * @type {boolean}
-	 * @memberof Table
 	 */
 	@Input() enableSingleSelect = false;
 
 	/**
 	 * Distance (in px) from the bottom that view has to reach before
 	 * `scrollLoad` event is emitted.
-	 *
-	 * @type {number}
-	 * @memberof Table
 	 */
 	@Input() scrollLoadDistance = 0;
 
@@ -415,7 +398,6 @@ export class Table {
 	 *
 	 * Works for columns with width set in pixels.
 	 *
-	 * @memberof Table
 	 */
 	@Input() columnsResizable = false;
 
@@ -425,99 +407,285 @@ export class Table {
 	 * Changing the column order in table changes table model. Be aware of it when you add additional data
 	 * to the model.
 	 *
-	 * @memberof Table
 	 */
 	@Input() columnsDraggable = false;
 
-	/**
-	 * Controls if all checkboxes are viewed as selected.
-	 *
-	 * @type {boolean}
-	 * @memberof Table
-	 */
-	selectAllCheckbox = false;
+	@Input()
+	set expandButtonAriaLabel(value: string | Observable<string>) {
+		this._expandButtonAriaLabel.override(value);
+	}
+	get expandButtonAriaLabel() {
+		return this._expandButtonAriaLabel.value;
+	}
+	@Input()
+	set sortDescendingLabel(value: string | Observable<string>) {
+		this._sortDescendingLabel.override(value);
+	}
+	get sortDescendingLabel() {
+		return this._sortDescendingLabel.value;
+	}
+	@Input()
+	set sortAscendingLabel(value: string | Observable<string>) {
+		this._sortAscendingLabel.override(value);
+	}
+	get sortAscendingLabel() {
+		return this._sortAscendingLabel.value;
+	}
 
 	/**
-	 * Controls the indeterminate state of the header checkbox.
-	 *
-	 * @type {boolean}
-	 * @memberof Table
+	 * Expects an object that contains some or all of:
+	 * ```
+	 * {
+	 *		"FILTER": "Filter",
+	 *		"END_OF_DATA": "You've reached the end of your content",
+	 *		"SCROLL_TOP": "Scroll to top",
+	 *		"CHECKBOX_HEADER": "Select all rows",
+	 *		"CHECKBOX_ROW": "Select row"
+	 * }
+	 * ```
 	 */
-	selectAllCheckboxSomeSelected = false;
+	@Input()
+	set translations (value) {
+		const valueWithDefaults = merge(this.i18n.getMultiple("TABLE"), value);
+		this._filterTitle.override(valueWithDefaults.FILTER);
+		this._endOfDataText.override(valueWithDefaults.END_OF_DATA);
+		this._scrollTopText.override(valueWithDefaults.SCROLL_TOP);
+		this._checkboxHeaderLabel.override(valueWithDefaults.CHECKBOX_HEADER);
+		this._checkboxRowLabel.override(valueWithDefaults.CHECKBOX_ROW);
+	}
 
 	/**
 	 * Set to `false` to remove table rows (zebra) stripes.
-	 *
-	 * @type {boolean}
-	 * @memberof Table
 	 */
 	@Input() striped = true;
 
 	/**
+	 * Set to `true` to stick the header to the top of the table
+	 */
+	@Input() stickyHeader = false;
+
+	/**
+	 * Set footer template to customize what is displayed in the tfoot section of the table
+	 */
+	@Input() footerTemplate: TemplateRef<any>;
+
+	/**
+	 * Used to populate the row selection checkbox label with a useful value if set.
+	 *
+	 * Example:
+	 * ```
+	 * <ibm-table [selectionLabelColumn]="0"></ibm-table>
+	 * <!-- results in aria-label="Select first column value"
+	 * (where "first column value" is the value of the first column in the row -->
+	 * ```
+	 */
+	@Input() selectionLabelColumn: number;
+
+	/**
 	 * Emits an index of the column that wants to be sorted.
 	 *
-	 * @memberof Table
 	 */
 	@Output() sort = new EventEmitter<number>();
 
 	/**
 	 * Emits if all rows are selected.
 	 *
-	 * @param {TableModel} model
-	 * @memberof Table
+	 * @param model
 	 */
 	@Output() selectAll = new EventEmitter<Object>();
 
 	/**
 	 * Emits if all rows are deselected.
 	 *
-	 * @param {TableModel} model
-	 * @memberof Table
+	 * @param model
 	 */
 	@Output() deselectAll = new EventEmitter<Object>();
 
 	/**
 	 * Emits if a single row is selected.
 	 *
-	 * @param {Object} ({model: this.model, selectedRowIndex: index})
-	 * @memberof Table
+	 * @param ({model: this.model, selectedRowIndex: index})
 	 */
 	@Output() selectRow = new EventEmitter<Object>();
 
 	/**
 	 * Emits if a single row is deselected.
 	 *
-	 * @param {Object} ({model: this.model, deselectedRowIndex: index})
-	 * @memberof Table
+	 * @param ({model: this.model, deselectedRowIndex: index})
 	 */
 	@Output() deselectRow = new EventEmitter<Object>();
 
 	/**
 	 * Emits when table requires more data to be loaded.
-	 *
-	 * @param {TableModel} model
-	 * @memberof Table
 	 */
 	@Output() scrollLoad = new EventEmitter<TableModel>();
 
-	private _model: TableModel;
+	/**
+	 * Controls if all checkboxes are viewed as selected.
+	 */
+	selectAllCheckbox = false;
 
-	private columnResizeWidth: number;
-	private columnResizeMouseX: number;
-	private mouseMoveSubscription: Subscription;
-	private mouseUpSubscription: Subscription;
+	/**
+	 * Controls the indeterminate state of the header checkbox.
+	 */
+	selectAllCheckboxSomeSelected = false;
 
-	private isColumnDragging = false;
-	private columnDraggedHoverIndex = -1;
-	private columnDraggedPosition = "";
+	get noData() {
+		return !this.model.data ||
+			this.model.data.length === 0 ||
+			this.model.data.length === 1 && this.model.data[0].length === 0;
+	}
+
+	public isColumnDragging = false;
+	public columnDraggedHoverIndex = -1;
+	public columnDraggedPosition = "";
+
+	protected _model: TableModel;
+	protected _isDataGrid = false;
+	// flag to prevent getters/setters from querying the view before it's fully instantiated
+	protected isViewReady = false;
+
+	protected subscriptions = new Subscription();
+	protected positionSubscription: Subscription;
+
+	protected interactionModel: DataGridInteractionModel;
+	protected interactionPositionSubscription: Subscription;
+
+	protected _expandButtonAriaLabel  = this.i18n.getOverridable("TABLE.EXPAND_BUTTON");
+	protected _sortDescendingLabel = this.i18n.getOverridable("TABLE.SORT_DESCENDING");
+	protected _sortAscendingLabel = this.i18n.getOverridable("TABLE.SORT_ASCENDING");
+	protected _checkboxHeaderLabel = this.i18n.getOverridable("TABLE.CHECKBOX_HEADER");
+	protected _checkboxRowLabel = this.i18n.getOverridable("TABLE.CHECKBOX_ROW");
+	protected _endOfDataText = this.i18n.getOverridable("TABLE.END_OF_DATA");
+	protected _scrollTopText = this.i18n.getOverridable("TABLE.SCROLL_TOP");
+	protected _filterTitle = this.i18n.getOverridable("TABLE.FILTER");
+
+	protected columnResizeWidth: number;
+	protected columnResizeMouseX: number;
+	protected mouseMoveSubscription: Subscription;
+	protected mouseUpSubscription: Subscription;
 
 	/**
 	 * Creates an instance of Table.
-	 *
-	 * @param {ApplicationRef} applicationRef
-	 * @memberof Table
 	 */
-	constructor(private applicationRef: ApplicationRef) {}
+	constructor(
+		protected elementRef: ElementRef,
+		protected applicationRef: ApplicationRef,
+		protected i18n: I18n
+	) {}
+
+	ngAfterViewInit() {
+		this.isViewReady = true;
+		if (this.isDataGrid) {
+			this.enableDataGridInteractions();
+		}
+	}
+
+	ngOnDestroy() {
+		this.subscriptions.unsubscribe();
+		if (this.positionSubscription) {
+			this.positionSubscription.unsubscribe();
+		}
+	}
+
+	enableDataGridInteractions() {
+		// if we have an `interactioModel` we've already enabled datagrid
+		if (this.interactionModel) {
+			return;
+		}
+		const table = this.elementRef.nativeElement.querySelector("table") as HTMLTableElement;
+		const tableAdapter = new TableDomAdapter(table);
+		const keydownEventStream = fromEvent<KeyboardEvent>(table, "keydown");
+		const clickEventStream = fromEvent<MouseEvent>(table, "click");
+		this.interactionModel = new DataGridInteractionModel(keydownEventStream, clickEventStream, tableAdapter);
+		this.positionSubscription = this.interactionModel.position.subscribe(event => {
+			const [currentRow, currentColumn] = event.current;
+			const [previousRow, previousColumn] = event.previous;
+
+			const currentElement = tableAdapter.getCell(currentRow, currentColumn);
+			Table.setTabIndex(currentElement, 0);
+
+			// if the model has just initialized don't focus or reset anything
+			if (previousRow === -1 || previousColumn === -1) { return; }
+
+			const previousElement = tableAdapter.getCell(previousRow, previousColumn);
+			Table.setTabIndex(previousElement, -1);
+			Table.focus(currentElement);
+		});
+		// call this after assigning `this.interactionModel` since it depends on it
+		this.resetTabIndex();
+	}
+
+	disableDataGridInteractions() {
+		// unsubscribe first so we don't cause the focus to fly around
+		if (this.positionSubscription) {
+			this.positionSubscription.unsubscribe();
+		}
+		// undo tab indexing (also resets the model)
+		this.resetTabIndex(0);
+		// null out the model ref
+		this.interactionModel = null;
+	}
+
+	onSelectAll() {
+		this.model.selectAll(true);
+		this.selectAll.emit(this.model);
+	}
+
+	onDeselectAll() {
+		this.model.selectAll(false);
+		this.deselectAll.emit(this.model);
+	}
+
+	onSelectRow(event) {
+		// check for the existence of the selectedRowIndex property
+		if (Object.keys(event).includes("selectedRowIndex")) {
+			this.model.selectRow(event.selectedRowIndex, true);
+			this.selectRow.emit(event);
+
+			if (this.showSelectionColumn && this.enableSingleSelect) {
+				const index = event.selectedRowIndex;
+				this.model.selectAll(false);
+				this.model.selectRow(index);
+			}
+		} else {
+			this.model.selectRow(event.deselectedRowIndex, false);
+			this.deselectRow.emit(event);
+		}
+	}
+
+	updateSelectAllCheckbox() {
+		const selectedRowsCount = this.model.selectedRowsCount();
+
+		if (selectedRowsCount <= 0) {
+			// reset select all checkbox if nothing selected
+			this.selectAllCheckbox = false;
+			this.selectAllCheckboxSomeSelected = false;
+		} else if (selectedRowsCount < this.model.data.length) {
+			this.selectAllCheckbox = false;
+			this.selectAllCheckboxSomeSelected = true;
+		} else {
+			this.selectAllCheckbox = true;
+			this.selectAllCheckboxSomeSelected = false;
+		}
+	}
+
+	resetTabIndex(newTabIndex = -1) {
+		// ensure the view is ready for the reset before we preform the actual reset
+		setTimeout(() => {
+			// reset all the tabIndexes we can find
+			const focusElementList = getFocusElementList(this.elementRef.nativeElement, tabbableSelectorIgnoreTabIndex);
+			if (focusElementList) {
+				focusElementList.forEach(tabbable => {
+					tabbable.tabIndex = newTabIndex;
+				});
+			}
+			// reset interaction model positions and tabIndexes
+			if (this.interactionModel) {
+				this.interactionModel.resetTabIndexes(newTabIndex);
+			}
+		});
+	}
 
 	columnResizeStart(event, column) {
 		this.columnResizeWidth = parseInt(column.style.width, 10);
@@ -542,92 +710,9 @@ export class Table {
 		this.mouseUpSubscription.unsubscribe();
 	}
 
-	onRowSelect(index: number) {
-		if (!this.showSelectionColumn && this.enableSingleSelect) {
-			this.model.rowsSelected.forEach((element, index) => {
-				this.model.selectRow(index, false);
-			});
-			this.model.selectRow(index, !this.model.rowsSelected[index]);
-		}
-	}
-
-	updateSelectAllCheckbox() {
-		const selectedRowsCount = this.model.selectedRowsCount();
-
-		if (selectedRowsCount <= 0) {
-			// reset select all checkbox if nothing selected
-			this.selectAllCheckbox = false;
-			this.selectAllCheckboxSomeSelected = false;
-		} else if (selectedRowsCount < this.model.data.length) {
-			this.selectAllCheckboxSomeSelected = true;
-		}
-	}
-
-	/**
-	 * Triggered whenever the header checkbox is clicked.
-	 * Updates all the checkboxes in the table view.
-	 * Emits the `selectAll` or `deselectAll` event.
-	 *
-	 * @memberof Table
-	 */
-	onSelectAllCheckboxChange() {
-		this.applicationRef.tick(); // give app time to process the click if needed
-
-		if (this.selectAllCheckboxSomeSelected) {
-			this.selectAllCheckbox = false; // clear all boxes
-			this.deselectAll.emit(this.model);
-		} else if (this.selectAllCheckbox) {
-			this.selectAll.emit(this.model);
-		} else {
-			this.deselectAll.emit(this.model);
-		}
-
-		this.selectAllCheckboxSomeSelected = false;
-
-		for (let i = 0; i < this.model.rowsSelected.length; i++) {
-			this.model.rowsSelected[i] = this.selectAllCheckbox;
-		}
-	}
-
-	/**
-	 * Triggered when a single row is clicked.
-	 * Updates the header checkbox state.
-	 * Emits the `selectRow` or `deselectRow` event.
-	 *
-	 * @param {number} index
-	 * @returns
-	 * @memberof Table
-	 */
-	onRowCheckboxChange(index: number) {
-		let startValue = this.model.rowsSelected[0];
-
-		if (this.model.rowsSelected[index]) {
-			this.selectRow.emit({model: this.model, selectedRowIndex: index});
-		} else {
-			this.deselectRow.emit({model: this.model, deselectedRowIndex: index});
-		}
-
-		for (let i = 1; i < this.model.rowsSelected.length; i++) {
-			let one = this.model.rowsSelected[i];
-
-			if (!!one !== !!startValue) {  // !! essentially converts to boolean and we want undefined to be false
-				// set indeterminate
-				this.selectAllCheckbox = false;
-				this.selectAllCheckboxSomeSelected = true;
-				return;
-			}
-		}
-
-		this.selectAllCheckboxSomeSelected = false;
-		this.selectAllCheckbox = startValue;
-	}
-
 	/**
 	 * Triggered when the user scrolls on the `<tbody>` element.
 	 * Emits the `scrollLoad` event.
-	 *
-	 * @param {any} event
-	 * @memberof Table
 	 */
 	onScroll(event) {
 		const distanceFromBottom = event.target.scrollHeight - event.target.clientHeight - event.target.scrollTop;
@@ -678,34 +763,50 @@ export class Table {
 		);
 	}
 
-	get scrollbarWidth() {
-		return getScrollbarWidth();
-	}
-
-	firstExpandedDataInRow(row) {
-		const found = row.find(d => d.expandedData);
-		if (found) {
-			return found.expandedData;
-		}
-		return found;
-	}
-
-	firstExpandedTemplateInRow(row) {
-		const found = row.find(d => d.expandedTemplate);
-		if (found) {
-			return found.expandedTemplate;
-		}
-		return found;
-	}
 	/**
 	 * Triggered when the user scrolls on the `<tbody>` element.
 	 * Emits the `scrollLoad` event.
-	 *
-	 * @param {any} event
-	 * @memberof Table
 	 */
 	scrollToTop(event) {
 		event.target.parentElement.parentElement.parentElement.parentElement.children[1].scrollTop = 0;
 		this.model.isEnd = false;
 	}
+
+	getSelectionLabelValue(row: TableItem[]) {
+		if (!this.selectionLabelColumn) {
+			return { value: this.i18n.get().TABLE.ROW };
+		}
+		return { value: row[this.selectionLabelColumn].data };
+	}
+
+	getExpandButtonAriaLabel() {
+		return this._expandButtonAriaLabel.subject;
+	}
+	getSortDescendingLabel() {
+		return this._sortDescendingLabel.subject;
+	}
+	getSortAscendingLabel() {
+		return this._sortAscendingLabel.subject;
+	}
+
+	getCheckboxHeaderLabel() {
+		return this._checkboxHeaderLabel.subject;
+	}
+
+	getCheckboxRowLabel() {
+		return this._checkboxRowLabel.subject;
+	}
+
+	getEndOfDataText() {
+		return this._endOfDataText.subject;
+	}
+
+	getScrollTopText() {
+		return this._scrollTopText.subject;
+	}
+
+	getFilterTitle() {
+		return this._filterTitle.subject;
+	}
+
 }

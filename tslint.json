@@ -84,6 +84,13 @@
 			true,
 			"always"
 		],
+		"trailing-comma": [
+			true,
+			{
+				"multiline": "never",
+				"singleline": "never"
+			}
+		],
 		"triple-equals": [
 			true,
 			"allow-null-check",
@@ -116,8 +123,6 @@
 			"check-type",
 			"check-preblock"
 		],
-
-		// [ENABLED, "attribute" | "element", "selectorPrefix" | ["listOfPrefixes"], "camelCase" | "kebab-case"]
 		"directive-selector": [true, "attribute", ["ibm", "app", "test"], "camelCase"],
 		"component-selector": [true, "element", ["ibm", "app", "test"], "kebab-case"],
 
@@ -129,9 +134,6 @@
 		"no-output-rename": true,
 		"no-forward-ref": true,
 		"use-life-cycle-interface": true,
-		"use-pipe-transform-interface": true,
-
-		"templates-use-public": true,
-		"invoke-injectable": true
+		"use-pipe-transform-interface": true
 	}
 }

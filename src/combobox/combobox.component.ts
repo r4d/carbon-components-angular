@@ -11,86 +11,98 @@ import {
 	AfterViewInit,
 	AfterContentInit,
 	HostBinding,
-	OnInit
+	TemplateRef
 } from "@angular/core";
 import { AbstractDropdownView } from "./../dropdown/abstract-dropdown-view.class";
 import { ListItem } from "./../dropdown/list-item.interface";
 import { NG_VALUE_ACCESSOR } from "@angular/forms";
+import { filter } from "rxjs/operators";
 
 /**
  * ComboBoxes are similar to dropdowns, except a combobox provides an input field for users to search items and (optionally) add their own.
  * Multi-select comboboxes also provide "pills" of selected items.
  *
- * @export
- * @class ComboBox
- * @implements {OnChanges}
- * @implements {AfterViewInit}
- * @implements {AfterContentInit}
+ * [See demo](../../?path=/story/combobox--basic)
+ *
+ * <example-url>../../iframe.html?id=combobox--basic</example-url>
  */
 @Component({
 	selector: "ibm-combo-box",
 	template: `
-		<div
-			[attr.aria-expanded]="open"
-			role="button"
-			class="bx--list-box__field"
-			tabindex="0"
-			type="button"
-			aria-label="close menu"
-			aria-haspopup="true">
-			<div
-				*ngIf="type === 'multi' && pills.length > 0"
-				(click)="clearSelected()"
-				role="button"
-				class="bx--list-box__selection bx--list-box__selection--multi"
-				tabindex="0"
-				title="Clear all selected items">
-				{{ pills.length }}
-				<svg
-					fill-rule="evenodd"
-					height="10"
-					role="img"
-					viewBox="0 0 10 10"
-					width="10"
-					focusable="false"
-					aria-label="Clear all selected items"
-					alt="Clear all selected items">
-					<title>Clear all selected items</title>
-					<path d="M6.32 5L10 8.68 8.68 10 5 6.32 1.32 10 0 8.68 3.68 5 0 1.32 1.32 0 5 3.68 8.68 0 10 1.32 6.32 5z"></path>
-				</svg>
-			</div>
-			<input
-				[disabled]="disabled"
-				[attr.aria-expanded]="open"
-				(click)="toggleDropdown()"
-				(keyup)="onSearch($event.target.value)"
-				[value]="selectedValue"
-				class="bx--text-input"
-				aria-label="ListBox input field"
-				role="combobox"
-				aria-autocomplete="list"
-				autocomplete="off"
-				placeholder="Filter..."/>
-			<div
-				[ngClass]="{'bx--list-box__menu-icon--open': open}"
-				class="bx--list-box__menu-icon">
-				<svg
-					fill-rule="evenodd"
-					height="5"
-					role="img"
-					viewBox="0 0 10 5"
-					width="10"
-					alt="Close menu"
-					aria-label="Close menu">
-					<title>Close menu</title>
-					<path d="M0 0l5 4.998L10 0z"></path>
-				</svg>
-			</div>
+		<label *ngIf="label" [for]="id" class="bx--label">
+			<ng-container *ngIf="!isTemplate(label)">{{label}}</ng-container>
+			<ng-template *ngIf="isTemplate(label)" [ngTemplateOutlet]="label"></ng-template>
+		</label>
+		<div *ngIf="helperText" class="bx--form__helper-text">
+			<ng-container *ngIf="!isTemplate(helperText)">{{helperText}}</ng-container>
+			<ng-template *ngIf="isTemplate(helperText)" [ngTemplateOutlet]="helperText"></ng-template>
 		</div>
 		<div
-			#dropdownMenu
-			*ngIf="open">
-			<ng-content></ng-content>
+			class="bx--combo-box bx--list-box"
+			[attr.data-invalid]="(invalid ? true : null)"
+			[ngClass]="{'bx--multi-select' : type === 'multi'}">
+			<div
+				[attr.aria-expanded]="open"
+				role="button"
+				class="bx--list-box__field"
+				tabindex="0"
+				type="button"
+				aria-label="close menu"
+				aria-haspopup="true"
+				(click)="toggleDropdown()">
+				<ibm-icon-warning-filled16
+					*ngIf="invalid"
+					class="bx--list-box__invalid-icon">
+				</ibm-icon-warning-filled16>
+				<div
+					*ngIf="type === 'multi' && pills.length > 0"
+					(click)="clearSelected()"
+					role="button"
+					class="bx--list-box__selection bx--list-box__selection--multi"
+					tabindex="0"
+					title="Clear all selected items">
+					{{ pills.length }}
+					<svg
+						focusable="false"
+						preserveAspectRatio="xMidYMid meet"
+						style="will-change: transform;"
+						role="img"
+						xmlns="http://www.w3.org/2000/svg"
+						width="16"
+						height="16"
+						viewBox="0 0 16 16"
+						aria-hidden="true">
+						<path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path>
+					</svg>
+				</div>
+				<input
+					[id]="id"
+					[disabled]="disabled"
+					(keyup)="onSearch($event.target.value)"
+					[value]="selectedValue"
+					class="bx--text-input"
+					role="combobox"
+					aria-label="ListBox input field"
+					autocomplete="off"
+					[placeholder]="placeholder"/>
+					<ibm-icon-chevron-down16
+						[ngClass]="{'bx--list-box__menu-icon--open': open}"
+						class="bx--list-box__menu-icon"
+						ariaLabel="Close menu">
+					</ibm-icon-chevron-down16>
+			</div>
+			<div
+				#dropdownMenu
+				*ngIf="open">
+				<ng-content></ng-content>
+			</div>
+		</div>
+		<div *ngIf="invalid">
+			<div *ngIf="!isTemplate(invalidText)" class="bx--form-requirement">{{ invalidText }}</div>
+			<ng-template
+				*ngIf="isTemplate(invalidText)"
+				[ngTemplateOutlet]="invalidText">
+			</ng-template>
 		</div>
 	`,
 	providers: [
@@ -101,7 +113,9 @@ import { NG_VALUE_ACCESSOR } from "@angular/forms";
 		}
 	]
 })
-export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentInit {
+export class ComboBox implements OnChanges, AfterViewInit, AfterContentInit {
+	static comboBoxCount = 0;
+	@Input() id = `dropdown-${ComboBox.comboBoxCount++}`;
 	/**
 	 * List of items to fill the content with.
 	 *
@@ -127,31 +141,38 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 	 * ];
 	 * ```
 	 *
-	 * @type {Array<ListItem>}
-	 * @memberof ComboBox
 	 */
 	@Input() items: Array<ListItem> = [];
 	/**
 	 * Text to show when nothing is selected.
-	 * @memberof ComboBox
 	 */
-	@Input() placeholder = "";
+	@Input() placeholder = "Filter...";
 	/**
 	 * Combo box type (supporting single or multi selection of items).
-	 * @type {("single" | "multi")}
-	 * @memberof ComboBox
 	 */
 	@Input() type: "single" | "multi" = "single";
 	/**
 	 * Combo box render size.
-	 * (size `"default"` is being deprecated as of neutrino v1.2.0, please use `"md"` instead)
-	 * @type {("sm" | "md" | "default" | "lg")}
-	 * @memberof ComboBox
 	 */
-	@Input() size: "sm" | "md" | "default" | "lg" = "md";
+	@Input() size: "sm" | "md" | "lg" = "md";
+	/**
+	 * Label for the combobox.
+	 */
+	@Input() label: string | TemplateRef<any>;
+	/**
+	 * Sets the optional helper text.
+	 */
+	@Input() helperText: string | TemplateRef<any>;
+	/**
+	 * Set to `true` for invalid state.
+	 */
+	@Input() invalid = false;
+	/**
+	 * Value displayed if dropdown is in invalid state.
+	 */
+	@Input() invalidText: string | TemplateRef<any>;
 	/**
 	 * Set to `true` to disable combobox.
-	 * @memberof ComboBox
 	 */
 	@HostBinding("attr.aria-disabled") @Input() disabled = false;
 	/**
@@ -165,9 +186,9 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 	 * }
 	 * ```
 	 */
-	@Output() selected: EventEmitter<ListItem> = new EventEmitter<ListItem>();
+	@Output() selected = new EventEmitter<ListItem | ListItem[]>();
 	/**
-	 * Bubbles from `n-pill-input` when the user types a value and presses enter. Intended to be used to add items to the list.
+	 * Intended to be used to add items to the list.
 	 *
 	 * Emits an event that includes the current item list, the suggested index for the new item, and a simple ListItem
 	 *
@@ -183,7 +204,6 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 	 *	}
 	 * ```
 	 *
-	 * @param ev event from `n-pill-input`, includes the typed value and the index of the pill the user typed after
 	 *
 	 * Example:
 	 * ```javascript
@@ -199,45 +219,35 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 	/** ContentChild reference to the instantiated dropdown list */
 	@ContentChild(AbstractDropdownView) view: AbstractDropdownView;
 	@ViewChild("dropdownMenu") dropdownMenu;
-	@HostBinding("class") class = "bx--combo-box bx--list-box";
-	@HostBinding("attr.role") role = "listbox";
+	@HostBinding("class.bx--list-box__wrapper") hostClass = true;
+	@HostBinding("attr.role") role = "combobox";
 	@HostBinding("style.display") display = "block";
 
 	public open = false;
 
 	/** Selected items for multi-select combo-boxes. */
 	public pills = [];
-	/** used to update the displayValue of `n-pill-input` */
+	/** used to update the displayValue */
 	public selectedValue = "";
 
-	private noop = this._noop.bind(this);
-	private onTouchedCallback: () => void = this._noop;
-	private propagateChangeCallback: (_: any) => void = this._noop;
+	protected noop = this._noop.bind(this);
+	protected onTouchedCallback: () => void = this._noop;
+	protected propagateChangeCallback: (_: any) => void = this._noop;
 
 	/**
 	 * Creates an instance of ComboBox.
-	 * @param {ElementRef} elementRef
-	 * @memberof ComboBox
 	 */
-	constructor(private elementRef: ElementRef) {}
+	constructor(protected elementRef: ElementRef) {}
 
 	/**
 	 * Lifecycle hook.
 	 * Updates pills if necessary.
 	 *
-	 * @param {any} changes
-	 * @memberof ComboBox
 	 */
 	ngOnChanges(changes) {
 		if (changes.items) {
-			this.view["updateList"](changes.items.currentValue);
+			this.view.items = changes.items.currentValue;
 			this.updateSelected();
-		}
-	}
-
-	ngOnInit() {
-		if (this.type === "multi") {
-			this.class = "bx--multi-select bx--combo-box bx--list-box";
 		}
 	}
 
@@ -253,26 +263,30 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 					this.updatePills();
 					this.propagateChangeCallback(this.view.getSelected());
 				} else {
-					if (event.item.selected) {
+					if (event.item && event.item.selected) {
 						this.selectedValue = event.item.content;
 						this.propagateChangeCallback(event.item);
 					} else {
 						this.selectedValue = "";
 						this.propagateChangeCallback(null);
 					}
-					// not gaurding these since the nativeElement has to be loaded
+					// not guarding these since the nativeElement has to be loaded
 					// for select to even fire
 					this.elementRef.nativeElement.querySelector("input").focus();
 					this.closeDropdown();
 				}
 				this.selected.emit(event);
-				this.view["filterBy"]("");
+				this.view.filterBy("");
 			});
-			this.view["updateList"](this.items);
+			this.view.items = this.items;
 			// update the rest of combobox with any pre-selected items
 			// setTimeout just defers the call to the next check cycle
 			setTimeout(() => {
 				this.updateSelected();
+			});
+
+			this.view.blurIntent.pipe(filter(v => v === "top")).subscribe(() => {
+				this.elementRef.nativeElement.querySelector(".bx--text-input").focus();
 			});
 		}
 	}
@@ -292,18 +306,16 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 
 	/**
 	 * Handles `Escape` key closing the dropdown, and arrow up/down focus to/from the dropdown list.
-	 * @param {KeyboardEvent} ev
 	 */
 	@HostListener("keydown", ["$event"])
 	hostkeys(ev: KeyboardEvent) {
 		if (ev.key === "Escape") {
 			this.closeDropdown();
-		} else if (ev.key === "ArrowDown" && !this.dropdownMenu.nativeElement.contains(ev.target)) {
+		} else if ((ev.key === "ArrowDown" || ev.key === "Down") // `"Down"` is IE specific value
+			&& (!this.dropdownMenu || !this.dropdownMenu.nativeElement.contains(ev.target))) {
 			ev.stopPropagation();
 			this.openDropdown();
 			setTimeout(() => this.view.getCurrentElement().focus(), 0);
-		} else if (ev.key === "ArrowUp" && this.dropdownMenu.nativeElement.contains(ev.target) && !this.view["hasPrevElement"]()) {
-			this.elementRef.nativeElement.querySelector(".combobox_input").focus();
 		}
 	}
 
@@ -352,13 +364,15 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 			}
 			return item;
 		});
-		this.view["updateList"](this.items);
+		this.view.items = this.items;
 		this.updatePills();
+		// clearSelected can only fire on type=multi
+		// so we just emit getSelected() (just in case there's any disabled but selected items)
+		this.selected.emit(this.view.getSelected() as any);
 	}
 
 	/**
 	 * Closes the dropdown and emits the close event.
-	 * @memberof ComboBox
 	 */
 	public closeDropdown() {
 		this.open = false;
@@ -367,15 +381,14 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 
 	/**
 	 * Opens the dropdown.
-	 * @memberof ComboBox
 	 */
 	public openDropdown() {
+		if (this.disabled) { return; }
 		this.open = true;
 	}
 
 	/**
 	 * Toggles the dropdown.
-	 * @memberof ComboBox
 	 */
 	public toggleDropdown() {
 		if (this.open) {
@@ -387,10 +400,9 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 
 	/**
 	 * Sets the list group filter, and manages single select item selection.
-	 * @param {string} searchString
 	 */
 	public onSearch(searchString) {
-		this.view["filterBy"](searchString);
+		this.view.filterBy(searchString);
 		if (searchString !== "") {
 			this.openDropdown();
 		} else {
@@ -399,7 +411,7 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 		if (this.type === "single") {
 			// deselect if the input doesn't match the content
 			// of any given item
-			const matches = this.view.items.some(item => item.content.toLowerCase().includes(searchString.toLowerCase()));
+			const matches = this.view.getListItems().some(item => item.content.toLowerCase().includes(searchString.toLowerCase()));
 			if (!matches) {
 				const selected = this.view.getSelected();
 				if (selected) {
@@ -408,7 +420,7 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 					this.view.select.emit({ item: selected[0] });
 					this.propagateChangeCallback(null);
 				} else {
-					this.view["filterBy"]("");
+					this.view.filterBy("");
 				}
 			}
 		}
@@ -417,7 +429,7 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 	/**
 	 * Bubbles from `n-pill-input` when the user types a value and presses enter. Intended to be used to add items to the list.
 	 *
-	 * @param {any} ev event from `n-pill-input`, includes the typed value and the index of the pill the user typed after
+	 * @param ev event from `n-pill-input`, includes the typed value and the index of the pill the user typed after
 	 *
 	 * Example:
 	 * ```javascript
@@ -430,10 +442,10 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 	public onSubmit(ev) {
 		let index = 0;
 		if (ev.after) {
-			index = this.view.items.indexOf(ev.after) + 1;
+			index = this.view.getListItems().indexOf(ev.after) + 1;
 		}
 		this.submit.emit({
-			items: this.view.items,
+			items: this.view.getListItems(),
 			index,
 			value: {
 				content: ev.value,
@@ -442,15 +454,17 @@ export class ComboBox implements OnChanges, OnInit, AfterViewInit, AfterContentI
 		});
 	}
 
-	private updateSelected() {
+	public isTemplate(value) {
+		return value instanceof TemplateRef;
+	}
+
+	protected updateSelected() {
 		const selected = this.view.getSelected();
-		if (selected) {
-			if (this.type === "multi") {
-				this.updatePills();
-			} else {
-				this.selectedValue = selected[0].content;
-				this.propagateChangeCallback(selected[0]);
-			}
+		if (this.type === "multi" ) {
+			this.updatePills();
+		} else if (selected && selected[0]) {
+			this.selectedValue = selected[0].content;
+			this.propagateChangeCallback(selected[0]);
 		}
 	}
 }

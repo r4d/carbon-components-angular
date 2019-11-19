@@ -14,36 +14,46 @@ import {
 			[attr.aria-controls]="id"
 			(click)="toggleExpanded()"
 			class="bx--accordion__heading">
-			<svg
-				class="bx--accordion__arrow"
-				width="7"
-				height="12"
-				viewBox="0 0 7 12">
-          		<path fill-rule="nonzero" d="M5.569 5.994L0 .726.687 0l6.336 5.994-6.335 6.002L0 11.27z"/>
-			</svg>
-			 <p class="bx--accordion__title">{{title}}</p>
+			<ibm-icon-chevron-right16 class="bx--accordion__arrow"></ibm-icon-chevron-right16>
+			<p
+				class="bx--accordion__title"
+				[ngClass]="{
+					'bx--skeleton__text': skeleton
+				}">
+				{{!skeleton ? title : null}}
+			</p>
 		</button>
 		<div [id]="id" class="bx--accordion__content">
-			<ng-content></ng-content>
+			<ng-content *ngIf="!skeleton; else skeletonTemplate"></ng-content>
+			<ng-template #skeletonTemplate>
+				<p class="bx--skeleton__text" style="width: 90%"></p>
+				<p class="bx--skeleton__text" style="width: 80%"></p>
+				<p class="bx--skeleton__text" style="width: 95%"></p>
+			</ng-template>
 		</div>
 	`
 })
 export class AccordionItem {
-	static accodionItemCount = 0;
-	@Input() title = `Title ${AccordionItem.accodionItemCount}`;
-	@HostBinding("class.bx--accordion__item--active") @Input() expanded = false;
-	@Input() id = `accordion-item-${AccordionItem.accodionItemCount}`;
+	static accordionItemCount = 0;
+	@Input() title = `Title ${AccordionItem.accordionItemCount}`;
+	@Input() id = `accordion-item-${AccordionItem.accordionItemCount}`;
+	@Input() skeleton = false;
 	@Output() selected = new EventEmitter();
 
-	@HostBinding("class") itemClass = "bx--accordion__item";
-	@HostBinding("style.display") @HostBinding("attr.role") itemType = "list-item";
+	@HostBinding("class.bx--accordion__item") itemClass = true;
+	@HostBinding("class.bx--accordion__item--active") @Input() expanded = false;
+	@HostBinding("style.display") itemType = "list-item";
+	@HostBinding("attr.role") role = "heading";
+	@HostBinding("attr.aria-level") @Input() ariaLevel = 3;
 
 	constructor() {
-		AccordionItem.accodionItemCount++;
+		AccordionItem.accordionItemCount++;
 	}
 
 	public toggleExpanded() {
-		this.expanded = !this.expanded;
-		this.selected.emit({id: this.id, expanded: this.expanded});
+		if (!this.skeleton) {
+			this.expanded = !this.expanded;
+			this.selected.emit({id: this.id, expanded: this.expanded});
+		}
 	}
 }

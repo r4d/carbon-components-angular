@@ -1,37 +1,54 @@
 import { storiesOf, moduleMetadata } from "@storybook/angular";
-import { withKnobs, text } from "@storybook/addon-knobs/angular";
-
-import { TranslateModule } from "@ngx-translate/core";
+import { withKnobs, text, select } from "@storybook/addon-knobs/angular";
 
 import { ModalModule } from "../";
-import { Component, Injector, Input } from "@angular/core";
+import { Component, Input, Inject } from "@angular/core";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
-import { Modal, ModalService } from "../";
+import { Modal, ModalService, DocumentationModule } from "../";
+import { ModalButton, AlertModalType, ModalButtonType } from "./alert-modal.interface";
+import { PlaceholderModule } from "./../placeholder/placeholder.module";
+import { BaseModal } from "./base-modal.class";
 
-@Modal()
 @Component({
 	selector: "app-sample-modal",
 	template: `
-		<ibm-modal>
-			<ibm-modal-header (closeSelect)="closeModal()">Header text</ibm-modal-header>
+		<ibm-modal (overlaySelected)="closeModal()">
+			<ibm-modal-header (closeSelect)="closeModal()">Header label</ibm-modal-header>
 			<section class="bx--modal-content">
 				<h1>Sample modal works.</h1>
 				<p class="bx--modal-content__text">{{modalText}}</p>
 			</section>
 			<ibm-modal-footer>
-				<button class="bx--btn bx--btn--primary" (click)="closeModal()">Close</button>
+				<button class="bx--btn bx--btn--secondary" (click)="showSecondaryModal()">Show Secondary Modal</button>
+				<button class="bx--btn bx--btn--primary" modal-primary-focus (click)="closeModal()">Close</button>
 			</ibm-modal-footer>
 		</ibm-modal>
 	`
 })
-class SampleModalComponent {
-	modalText: string;
-	constructor(private injector: Injector) {
-		this.modalText = this.injector.get("modalText");
+class SampleModal extends BaseModal {
+	constructor(
+		@Inject("modalText") public modalText,
+		protected modalService: ModalService) {
+		super();
+	}
+
+	showSecondaryModal() {
+		this.modalService.show({
+			modalLabel: "Secondary header label",
+			modalTitle: "Sample secondary modal works.",
+			modalContent: this.modalText,
+			buttons: [{
+				text: "Cancel",
+				type: ModalButtonType.secondary
+			}, {
+				text: "OK",
+				type: ModalButtonType.primary,
+				click: () => alert("OK button clicked")
+			}]
+		});
 	}
 }
 
-@Modal()
 @Component({
 	selector: "app-modal-story",
 	template: `
@@ -42,14 +59,41 @@ class ModalStory {
 
 	@Input() modalText = "Hello, World";
 
-	constructor(private modalService: ModalService) { }
+	constructor(protected modalService: ModalService) { }
 
 	openModal() {
 		this.modalService.create({
-			component: SampleModalComponent,
+			component: SampleModal,
 			inputs: {
 				modalText: this.modalText
 			}
+		});
+	}
+}
+
+
+@Component({
+	selector: "app-alert-modal-story",
+	template: `
+		<button class="bx--btn bx--btn--primary" (click)="openModal()">Open Modal</button>
+	`
+})
+class AlertModalStory {
+	@Input() modalType: AlertModalType;
+	@Input() modalLabel: string;
+	@Input() modalTitle: string;
+	@Input() modalContent: string;
+	@Input() buttons: Array<ModalButton>;
+
+	constructor(protected modalService: ModalService) { }
+
+	openModal() {
+		this.modalService.show({
+			modalType: this.modalType,
+			label: this.modalLabel,
+			title: this.modalTitle,
+			content: this.modalContent,
+			buttons: this.buttons
 		});
 	}
 }
@@ -59,15 +103,17 @@ storiesOf("Modal", module)
 		moduleMetadata({
 			declarations: [
 				ModalStory,
-				SampleModalComponent
+				SampleModal,
+				AlertModalStory
 			],
 			imports: [
 				ModalModule,
+				PlaceholderModule,
 				BrowserAnimationsModule,
-				TranslateModule.forRoot()
+				DocumentationModule
 			],
 			entryComponents: [
-				SampleModalComponent
+				SampleModal
 			]
 		})
 	)
@@ -75,10 +121,58 @@ storiesOf("Modal", module)
 	.add("Basic", () => ({
 		template: `
 		<app-modal-story [modalText]="modalText"></app-modal-story>
-		<ibm-modal-placeholder></ibm-modal-placeholder>
+		<ibm-placeholder></ibm-placeholder>
 		`,
 		props: {
 			modalText: text("modalText", "Hello, World!")
 		}
-	}
-));
+	}))
+	.add("Transactional", () => ({
+		template: `
+		<app-alert-modal-story
+			[modalType]="modalType"
+			[modalLabel]="modalLabel"
+			[modalTitle]="modalTitle"
+			[modalContent]="modalContent"
+			[buttons]="buttons">
+		</app-alert-modal-story>
+		<ibm-placeholder></ibm-placeholder>
+		`,
+		props: {
+			modalType: select("modalType", ["default", "danger"], "default"),
+			modalLabel: text("modalLabel", "optional label"),
+			modalTitle: text("modalTitle", "Delete service from application"),
+			modalContent: text("modalContent", `Are you sure you want to remove the Speech to Text service from the node-test app?`),
+			buttons: [{
+				text: "Cancel",
+				type: "secondary"
+			}, {
+				text: "Delete",
+				type: "primary",
+				click: () => alert("Delete button clicked")
+			}]
+		}
+	}))
+	.add("Passive", () => ({
+		template: `
+		<app-alert-modal-story
+			[modalType]="modalType"
+			[modalLabel]="modalLabel"
+			[modalTitle]="modalTitle"
+			[modalContent]="modalContent">
+		</app-alert-modal-story>
+		<ibm-placeholder></ibm-placeholder>
+		`,
+		props: {
+			modalType: select("modalType", ["default", "danger"], "default"),
+			modalLabel: text("modalLabel", "optional label"),
+			modalTitle: text("modalTitle", "Passive modal title"),
+			modalContent: text("modalContent", "Passive modal notifications should only appear if there is an action " +
+				"the user needs to address immediately. Passive modal notifications are persistent on screen")
+		}
+	}))
+	.add("Documentation", () => ({
+		template: `
+			<ibm-documentation src="documentation/components/Modal.html"></ibm-documentation>
+		`
+	}));

@@ -1,24 +1,17 @@
 import {
 	Component,
-	Input,
-	Output,
-	EventEmitter,
-	OnInit,
-	AfterViewInit,
-	Injector,
-	ElementRef,
 	TemplateRef,
-	HostListener,
-	ViewChild,
-	HostBinding
+	HostBinding,
+	Input,
+	ElementRef
 } from "@angular/core";
+import { getFocusElementList } from "./../../common/tab.service";
+
 import { Dialog } from "./../dialog.component";
+import { position } from "@carbon/utils-position";
 
 /**
  * Extend the `Dialog` component to create a tooltip for exposing content.
- * @export
- * @class Tooltip
- * @extends {Dialog}
  */
 @Component({
 	selector: "ibm-tooltip",
@@ -26,8 +19,8 @@ import { Dialog } from "./../dialog.component";
 		<div
 			#dialog
 			[id]="dialogConfig.compID"
-			role="tooltip"
-			tabindex="0"
+			[attr.role]="role"
+			[attr.data-floating-menu-direction]="placement"
 			class="bx--tooltip bx--tooltip--shown">
 			<span class="bx--tooltip__caret" aria-hidden="true"></span>
 			<ng-template
@@ -46,28 +39,43 @@ export class Tooltip extends Dialog {
 	@HostBinding("style.display") style = "inline-block";
 	/**
 	 * Value is set to `true` if the `Tooltip` is to display a `TemplateRef` instead of a string.
-	 * @type {boolean}
-	 * @memberof Tooltip
 	 */
 	public hasContentTemplate = false;
-
 	/**
-	 * Check whether there is a template for the `Tooltip` content.
-	 * @memberof Tooltip
+	 * Sets the role of the tooltip. If there's no focusable content we leave it as a `tooltip`,
+	 * if there _is_ focusable content we switch to the interactive `dialog` role.
 	 */
-	onDialogInit() {
-		this.hasContentTemplate = this.dialogConfig.content instanceof TemplateRef;
+	public role = "tooltip";
+
+	constructor(protected elementRef: ElementRef) {
+		super(elementRef);
 	}
 
 	/**
-	 * Set the class of the `Tooltip`.
-	 * @returns null
-	 * @memberof Tooltip
+	 * Check whether there is a template for the `Tooltip` content.
 	 */
-	public getClass() {
-		if (this.dialogConfig.type) {
-			return `tooltip--${this.dialogConfig.type}-${this.placement}`;
+	onDialogInit() {
+		this.addGap["bottom"] = pos => {
+			return position.addOffset(pos, 3, 0);
+		};
+		this.addGap["top"] = pos => {
+			return position.addOffset(pos, -10, 0);
+		};
+		this.addGap["left"] = pos => {
+			return position.addOffset(pos, -3, -6);
+		};
+		this.addGap["right"] = pos => {
+			return position.addOffset(pos, -3, 6);
+		};
+
+		this.hasContentTemplate = this.dialogConfig.content instanceof TemplateRef;
+	}
+
+	afterDialogViewInit() {
+		const focusableElements = getFocusElementList(this.dialog.nativeElement);
+		if (focusableElements.length > 0) {
+			this.role = "dialog";
+			focusableElements[0].focus();
 		}
-		return `tooltip--${this.placement}`;
 	}
 }

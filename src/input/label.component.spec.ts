@@ -1,25 +1,24 @@
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
-import { ComponentFixture, TestBed, fakeAsync, tick, async } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { DebugElement } from "@angular/core";
-import { StaticIconModule } from "../icon/static-icon.module";
 
-import { LabelComponent } from "./label.component";
+import { Label } from "./label.component";
 
-describe("LabelComponent", () => {
-	let component: LabelComponent;
-	let fixture: ComponentFixture<LabelComponent>;
+describe("Label", () => {
+	let component: Label;
+	let fixture: ComponentFixture<Label>;
 	let de: DebugElement;
 	let el: HTMLElement;
 
 	beforeEach(() => {
 		TestBed.configureTestingModule({
-			declarations: [LabelComponent],
-			imports: [BrowserAnimationsModule, StaticIconModule],
+			declarations: [Label],
+			imports: [BrowserAnimationsModule],
 			providers: []
 		});
 
-		fixture = TestBed.createComponent(LabelComponent);
+		fixture = TestBed.createComponent(Label);
 		component = fixture.componentInstance;
 		de = fixture.debugElement.query(By.css(".label"));
 		el = de.nativeElement;
@@ -27,7 +26,7 @@ describe("LabelComponent", () => {
 	});
 
 	xit("should work", () => {
-		expect(component instanceof LabelComponent).toBe(true);
+		expect(component instanceof Label).toBe(true);
 	});
 
 	xit("should set icon to success", () => {

@@ -8,39 +8,47 @@ export class TableHeaderItem {
 	/**
 	 * Defines if column under this TableHeaderItem should be displayed.
 	 *
-	 * @memberof TableHeaderItem
 	 */
 	visible = true;
 
 	/**
 	 * Disables sorting by default.
 	 *
-	 * @memberof TableHeaderItem
 	 */
 	sorted = false;
+
+	/**
+	 * Enables sorting on click by default.
+	 * If false then this column won't show a sorting arrow at all.
+	 *
+	 */
+	sortable = true;
 
 	/**
 	 * Number of applied filters.
 	 *
 	 * `filter()` should set it to appropriate number.
 	 *
-	 * @memberof TableHeaderItem
 	 */
 	filterCount = 0;
+
+	/**
+	 * Attach a class to the column, both the header and column cells.
+	 *
+	 */
+	className: string;
 
 	/**
 	 * Style for the column, applied to every element in the column.
 	 *
 	 * ngStyle-like format
 	 *
-	 * @memberof TableHeaderItem
 	 */
-	style = {"width": "150px"};
+	style = {};
 
 	/**
 	 * If true, sort is set to ascending, if false descending will be true.
 	 *
-	 * @memberof TableHeaderItem
 	 */
 	set ascending(asc) {
 		this._ascending = asc;
@@ -52,7 +60,6 @@ export class TableHeaderItem {
 	/**
 	 * If true, sort is set to descending, if false ascending will be true.
 	 *
-	 * @memberof TableHeaderItem
 	 */
 	set descending(desc) {
 		this._ascending = !desc;
@@ -63,11 +70,14 @@ export class TableHeaderItem {
 
 	/**
 	 * Data for the header item.
-	 *
-	 * @type {*}
-	 * @memberof TableHeaderItem
 	 */
 	data: any;
+
+	/**
+	 * Data for the header item for general usage in the controller.
+	 * For example, which `field` is this column related to.
+	 */
+	metadata: any;
 
 	/**
 	 * Used to display data in a desired way.
@@ -90,7 +100,7 @@ export class TableHeaderItem {
 	 *
 	 * ```typescript
 	 * (at)ViewChild("customHeaderTemplate")
-	 * private customHeaderTemplate: TemplateRef<any>;
+	 * protected customHeaderTemplate: TemplateRef<any>;
 	 * ```
 	 *
 	 * Set the template to the header item, for example:
@@ -100,10 +110,18 @@ export class TableHeaderItem {
 	 * 		new TableHeaderItem({data: {name: "Custom header", link: "/table"}, template: this.customHeaderTemplate})
 	 * ];
 	 * ```
-	 * @type {TemplateRef<any>}
-	 * @memberof TableHeaderItem
 	 */
 	template: TemplateRef<any>;
+
+	/**
+	 * The label for the sort button
+	 */
+	ariaSortLabel: string;
+
+	/**
+	 * A callback function to format the sort label. Will be heavily called.
+	 */
+	formatSortLabel: (label: string, staticLabel?: string) => string;
 
 	/**
 	 * Used as a template for popover filter.
@@ -151,17 +169,11 @@ export class TableHeaderItem {
 	 * 	}
 	 * }
 	 * ```
-	 *
-	 * @type {TemplateRef<any>}
-	 * @memberof TableHeaderItem
 	 */
 	filterTemplate: TemplateRef<any>;
 
 	/**
 	 * Used along with `filterTemplate` to construct the filter popover
-	 *
-	 * @type {TemplateRef<any>}
-	 * @memberof TableHeaderItem
 	 */
 	filterFooter: TemplateRef<any>;
 
@@ -174,24 +186,18 @@ export class TableHeaderItem {
 	 * available in `filterData.data` in your extension of `TableHeaderItem`.
 	 *
 	 * Because angular and object references.
-	 *
-	 * @type {*}
-	 * @memberof TableHeaderItem
 	 */
 	filterData: any;
 
 	/**
 	 * used in `ascending`
 	 *
-	 * @private
-	 * @memberof TableHeaderItem
+	 * @protected
 	 */
-	private _ascending = true;
+	protected _ascending = true;
 
 	/**
 	 * Creates an instance of TableHeaderItem.
-	 * @param {*} [rawData]
-	 * @memberof TableHeaderItem
 	 */
 	constructor(rawData?: any) {
 		// defaults so we dont leave things empty
@@ -204,14 +210,11 @@ export class TableHeaderItem {
 		};
 		// fill our object with provided props, and fallback to defaults
 		const data = Object.assign({}, defaults, rawData);
-		this.data = data.data;
-		this.visible = data.visible;
-		this.filterCount = data.filterCount;
-		this.template = data.template;
-		this.filterTemplate = data.filterTemplate;
-		this.filterFooter = data.filterFooter;
-		this.filterData = data.filterData;
-		this.style = data.style;
+		for (let property of Object.getOwnPropertyNames(data)) {
+			if (data.hasOwnProperty(property)) {
+				this[property] = data[property];
+			}
+		}
 	}
 
 	/**
@@ -219,13 +222,9 @@ export class TableHeaderItem {
 	 *
 	 * Override to enable different sorting.
 	 *
-	 * @param {TableItem} one
-	 * @param {TableItem} two
-	 * @returns {number}
 	 * < 0 if `one` should go before `two`
 	 * > 0 if `one` shoulg go after `two`
 	 * 0 if it doesn't matter (they are the same)
-	 * @memberof TableHeaderItem
 	 */
 	compare(one: TableItem, two: TableItem): number {
 		if (one.data < two.data) {
@@ -245,11 +244,8 @@ export class TableHeaderItem {
 	 * Even though there is just one filter function, there can be multiple filters.
 	 * When implementing filter, set `filterCount` before returning.
 	 *
-	 * @param {TableItem} item
-	 * @returns {boolean}
 	 * `true` to hide the row
 	 * `false` to show the row
-	 * @memberof TableHeaderItem
 	 */
 	filter(item: TableItem): boolean {
 		this.filterCount = 0;

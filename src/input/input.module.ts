@@ -4,23 +4,28 @@ import { FormsModule } from "@angular/forms";
 import { CommonModule } from "@angular/common";
 
 // imports
-import { LabelComponent } from "./label.component";
+import { Label } from "./label.component";
 import { TextInput } from "./input.directive";
+import { TextArea } from "./text-area.directive";
+import { WarningFilled16Module } from "@carbon/icons-angular/lib/warning--filled/16";
 
 @NgModule({
 	declarations: [
-		LabelComponent,
-		TextInput
+		Label,
+		TextInput,
+		TextArea
 	],
 	exports: [
-		LabelComponent,
-		TextInput
+		Label,
+		TextInput,
+		TextArea
 	],
 	imports: [
 		CommonModule,
 		FormsModule,
+		WarningFilled16Module
 	]
 })
 class InputModule { }
 
-export { TextInput, LabelComponent, InputModule };
+export { TextInput, Label, InputModule };
